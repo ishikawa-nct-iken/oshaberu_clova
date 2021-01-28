@@ -9,6 +9,7 @@ const PORT = process.env.PORT || 8000;
 
 const app = express();
 app.use(bodyParser.json());
+app.use(express.static('public'));
 app.use((err, req, res, next) => next());
 
 app.use('/', routes);

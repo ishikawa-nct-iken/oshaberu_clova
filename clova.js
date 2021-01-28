@@ -3,8 +3,10 @@ const router = express.Router();
 
 const uuid = require('uuid').v4;
 const _ = require('lodash');
-const verifier = require('./verifier')
-// require('dotenv').config();
+const verifier = require('./verifier');
+const fs = require('fs');
+
+const responses = JSON.parse(fs.readFileSync('./data/json/responses.json', 'utf8'));
 
 class Directive {
     constructor({namespace, name, payload}) {
@@ -12,149 +14,170 @@ class Directive {
             messageId: uuid(),
             namespace: namespace,
             name: name,
+        };
+        this.payload = payload;
+    }
+}
+
+const getSlot = (slots, name, defaultVal) => {
+    if (slots != null && slots[name] != null) {
+        return slots[name].value;
+    }
+
+    return defaultVal ? defaultVal : null;
+}
+
+const chooseFromArray = (array) => {
+    if (!array || array.length == 0) {
+        return null;
+    }
+
+    const rnd = Math.floor(Math.random() * array.length);
+    return array[rnd];
+};
+
+const getResponse = (intent, slots) => {
+    for (const intentName of Object.keys(responses)) {
+        if (intent === intentName) {
+            if (typeof responses[intentName] == 'string') {
+                return response[intentName];
+            } else if (Array.isArray(responses[intentName])) {
+                return chooseFromArray(responses[intentName]);
+            } else {
+                const res = getResponseSlot(responses[intentName], slots);
+                if (res) {
+                    return res;
+                }
+            }
         }
-        this.payload = payload
     }
-}
-
-function resultText({midText, sum, diceCount}) {
-    if (diceCount == 1) {
-        return `結果は ${sum} です。`
-    } else if (diceCount < 4) {
-        return `結果は ${midText} で、合計 ${sum} です。`
-    } else {
-        return `${diceCount}個のサイコロの合計は ${sum} です。`
+    if (responses.hasOwnProperty('')) {
+        return chooseFromArray(responses['']);
     }
-}
+};
 
-function throwDice(diceCount) {
-    const results = []
-    let midText = ''
-    let resultText = ''
-    let sum = 0
-    console.log(`throw ${diceCount} times`)
-    for (let i = 0; i < diceCount; i++) {
-        const rand = Math.floor(Math.random() * 6) + 1
-        console.log(`${i + 1} time: ${rand}`)
-        results.push(rand)
-        sum += rand
-        midText += `${rand}, `
+const getResponseSlot = (responses, slots) => {
+    if (slots != null) {
+        for (const slotName of Object.keys(responses)) {
+            if (slots.hasOwnProperty(slotName)) {
+                for (const value of Object.keys(responses[slotName])) {
+                    if (value === slots[slotName].value) {
+                        if (typeof responses[slotName][value] == 'string') {
+                            return response[slotName][value];
+                        } else if (Array.isArray(responses[slotName][value])) {
+                            return chooseFromArray(responses[slotName][value]);
+                        } else {
+                            const res = getResponseSlot(responses[slotName][value], slots);
+                            if (res) {
+                                return res;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
+    if (responses.hasOwnProperty('')) {
+        return chooseFromArray(responses['']);
+    }
+};
 
-    midText = midText.replace(/, $/, '')
-    return {midText, sum, diceCount}
-}
+// console.log(getResponse('FortuneTellingIntent', {}));
+// console.log(getResponse('TiredIntent', { 'PlaceSlot' : { value : '学校' } }));
+// console.log(getResponse('TiredIntent', { 'PlaceSlot' : { value : 'バイト' } }));
+// console.log(getResponse('TiredIntent', { 'PlaceSlot' : { value : '仕事' } }));
+// console.log(getResponse('TiredIntent', { }));
+// console.log(getResponse('UnknownIntent', { }));
 
 class CEKRequest {
     constructor (httpReq) {
-        this.request = httpReq.body.request
-        this.context = httpReq.body.context
-        this.session = httpReq.body.session
-        console.log(`CEK Request: ${JSON.stringify(this.context)}, ${JSON.stringify(this.session)}`)
+        this.request = httpReq.body.request;
+        this.context = httpReq.body.context;
+        this.session = httpReq.body.session;
+        console.log(`CEK Request: ${JSON.stringify(this.context)}, ${JSON.stringify(this.session)}`);
     }
 
     do(cekResponse) {
         switch (this.request.type) {
             case 'LaunchRequest':
-                return this.launchRequest(cekResponse)
+                return this.launchRequest(cekResponse);
             case 'IntentRequest':
-                return this.intentRequest(cekResponse)
+                return this.intentRequest(cekResponse);
             case 'SessionEndedRequest':
-                return this.sessionEndedRequest(cekResponse)
+                return this.sessionEndedRequest(cekResponse);
         }
     }
 
     launchRequest(cekResponse) {
-        console.log('launchRequest')
-        cekResponse.setSimpleSpeechText('こんにちは．')
-        cekResponse.setMultiturn({
-            // intent: 'ThrowDiceIntent',
-        })
+        console.log('launchRequest');
+        cekResponse.setSimpleSpeechText('こんにちは．おしゃべるです．');
+        cekResponse.setMultiturn();
     }
 
     intentRequest(cekResponse) {
-        console.log('intentRequest')
-        console.dir(this.request)
-        const intent = this.request.intent.name
-        const slots = this.request.intent.slots
+        console.log('intentRequest');
+        console.dir(this.request);
+        const intent = this.request.intent.name;
+        const slots = this.request.intent.slots;
 
         switch (intent) {
         case 'ThrowDiceIntent':
-            let diceCount = 1
+            let diceCount = 1;
             if (slots != null && slots.diceCount != null) {
                 diceCount = parseInt(slots.diceCount.value);
             }
-            cekResponse.appendSpeechText(`サイコロを ${diceCount}個 投げます。`)
+            let sum = 0;
+            for (let i = 0; i < diceCount; i++) {
+                sum += Math.floor(Math.random() * 6) + 1;
+            }
+            cekResponse.appendSpeechText(`サイコロを ${diceCount}個 投げます。`);
             cekResponse.appendSpeechText({
                 lang: 'ja',
                 type: 'URL',
-                value: `${process.env.DOMAIN}/rolling_dice_sound.mp3`,
-            })
-            const throwResult = throwDice(diceCount)
-            cekResponse.appendSpeechText(resultText(throwResult));
-            break
-        case 'FortuneTellingIntent':
-            let fortuneSlot = '運勢';
-            console.log(slots.FortuneSlot);
-            if (slots != null && slots.FortuneSlot != null) {
-                fortuneSlot = slots.FortuneSlot.value;
-            }
-            cekResponse.appendSpeechText(`あなたの${fortuneSlot}は大吉です！`)
+                value: `${process.env.DOMAIN}/sounds/saikoro.mp3`,
+            });
+            cekResponse.appendSpeechText(`${diceCount}個のサイコロの合計は ${sum} です。`);
             break;
-        case 'TiredIntent':
-            let placeSlot = '';
-            console.log(slots.PlaceSlot);
-            if (slots != null && slots.PlaceSlot != null) {
-                placeSlot = slots.PlaceSlot.value;
-            }
-            switch (placeSlot) {
-            case '学校':
-                cekResponse.appendSpeechText(`いつも頑張ってるから弱音吐いてもいいよ`)
-                break;
-            default:
-                cekResponse.appendSpeechText(`つらい時こそ笑顔が大切だよ！`)
-                break;
-            }
+
+        default:
+            cekResponse.appendSpeechText(getResponse(intent, slots));
             break;
         }
 
-        cekResponse.setMultiturn({
-            // intent: 'ThrowDiceIntent',
-        })
-
-        if (this.session.new == false) {
-            cekResponse.setMultiturn()
-        }
+        cekResponse.setMultiturn();
+        // if (this.session.new == false) {
+        //     cekResponse.setMultiturn()
+        // }
     }
 
     sessionEndedRequest(cekResponse) {
-        console.log('sessionEndedRequest')
-        cekResponse.setSimpleSpeechText('サイコロを終了します。')
-        cekResponse.clearMultiturn()
+        console.log('sessionEndedRequest');
+        cekResponse.setSimpleSpeechText('おしゃべるを終了します。');
+        cekResponse.clearMultiturn();
     }
 }
 
 class CEKResponse {
     constructor () {
-        console.log('CEKResponse constructor')
+        console.log('CEKResponse constructor');
         this.response = {
             directives: [],
             shouldEndSession: true,
             outputSpeech: {},
             card: {},
-        }
-        this.version = '0.1.0'
-        this.sessionAttributes = {}
+        };
+        this.version = '0.1.0';
+        this.sessionAttributes = {};
     }
 
     setMultiturn(sessionAttributes) {
-        this.response.shouldEndSession = false
-        this.sessionAttributes = _.assign(this.sessionAttributes, sessionAttributes)
+        this.response.shouldEndSession = false;
+        this.sessionAttributes = _.assign(this.sessionAttributes, sessionAttributes);
     }
 
     clearMultiturn() {
-        this.response.shouldEndSession = true
-        this.sessionAttributes = {}
+        this.response.shouldEndSession = true;
+        this.sessionAttributes = {};
     }
 
     setSimpleSpeechText(outputText) {
@@ -165,39 +188,39 @@ class CEKResponse {
                     lang: 'ja',
                     value: outputText,
             },
-        }
+        };
     }
 
     appendSpeechText(outputText) {
-        const outputSpeech = this.response.outputSpeech
+        const outputSpeech = this.response.outputSpeech;
         if (outputSpeech.type != 'SpeechList') {
-            outputSpeech.type = 'SpeechList'
-            outputSpeech.values = []
+            outputSpeech.type = 'SpeechList';
+            outputSpeech.values = [];
         }
         if (typeof(outputText) == 'string') {
             outputSpeech.values.push({
                 type: 'PlainText',
                 lang: 'ja',
                 value: outputText,
-            })
+            });
         } else {
-            outputSpeech.values.push(outputText)
+            outputSpeech.values.push(outputText);
         }
     }
 }
 
-const clovaReq = function (httpReq, httpRes, next) {
-    const signature = httpReq.headers.signaturecek
-    cekResponse = new CEKResponse()
-    cekRequest = new CEKRequest(httpReq)
+const clovaReq = (httpReq, httpRes, next) => {
+    const signature = httpReq.headers.signaturecek;
+    const cekResponse = new CEKResponse();
+    const cekRequest = new CEKRequest(httpReq);
     try{
-        verifier(signature, process.env.ExtensionId, JSON.stringify(httpReq.body))
-    }catch(e){
-        return httpRes.status(400).send(e.message)
+        verifier(signature, process.env.EXTENSION_ID, JSON.stringify(httpReq.body));
+    } catch(e) {
+        return httpRes.status(400).send(e.message);
     }
-    cekRequest.do(cekResponse)
-    console.log(`CEKResponse: ${JSON.stringify(cekResponse)}`)
-    return httpRes.send(cekResponse)
+    cekRequest.do(cekResponse);
+    console.log(`CEKResponse: ${JSON.stringify(cekResponse)}`);
+    return httpRes.send(cekResponse);
 };
 
 router.post(`/`, clovaReq);

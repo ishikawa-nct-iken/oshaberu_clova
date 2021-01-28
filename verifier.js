@@ -1,6 +1,6 @@
 const { createVerify } = require('crypto')
 
-function checkSignature(certBody, signature, requestBody) {
+const checkSignature = (certBody, signature, requestBody) => {
     const veri = createVerify('RSA-SHA256');
     veri.update(requestBody, 'utf8');
 
@@ -9,13 +9,13 @@ function checkSignature(certBody, signature, requestBody) {
     }
 }
 
-function checkApplicationId(jsonRequestBody, applicationId) {
+const checkApplicationId = (jsonRequestBody, applicationId) => {
     if (jsonRequestBody.context.System.application.applicationId !== 'my.clova.extension.ikenchan') {
         throw new Error(`Invalid application id: ${applicationId}.`);
     }
 }
 
-function getCertificate() {
+const getCertificate = () => {
     return `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwiMvQNKD/WQcX9KiWNMb
 nSR+dJYTWL6TmqqwWFia69TyiobVIfGfxFSefxYyMTcFznoGCpg8aOCAkMxUH58N
@@ -40,8 +40,7 @@ var verifier = function(signature, applicationId, requestBody) {
         throw new Error('Missing requestBody.');
     }
 
-    const certBody = getCertificate();
-    checkSignature(certBody, signature, requestBody);
+    checkSignature(getCertificate(), signature, requestBody);
 
     const jsonRequestBody = JSON.parse(requestBody);
     checkApplicationId(jsonRequestBody, applicationId);
