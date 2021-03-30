@@ -6,7 +6,7 @@ const _ = require('lodash');
 const verifier = require('./verifier');
 const fs = require('fs');
 
-const responses = JSON.parse(fs.readFileSync('./data/json/responses.json', 'utf8'));
+const responses = JSON.parse(fs.readFileSync('./data/json/responses_senior.json', 'utf8'));
 
 class Directive {
     constructor({namespace, name, payload}) {
@@ -81,13 +81,6 @@ const getResponseSlot = (responses, slots) => {
         return chooseFromArray(responses['']);
     }
 };
-
-// console.log(getResponse('FortuneTellingIntent', {}));
-// console.log(getResponse('TiredIntent', { 'PlaceSlot' : { value : '学校' } }));
-// console.log(getResponse('TiredIntent', { 'PlaceSlot' : { value : 'バイト' } }));
-// console.log(getResponse('TiredIntent', { 'PlaceSlot' : { value : '仕事' } }));
-// console.log(getResponse('TiredIntent', { }));
-// console.log(getResponse('UnknownIntent', { }));
 
 class CEKRequest {
     constructor (httpReq) {
